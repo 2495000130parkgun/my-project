@@ -1,0 +1,177 @@
+using UnityEngine;
+using System.Collections;
+
+public class PlayerMove : MonoBehaviour
+{
+    public float maxSpeed = 6f;
+    public float tapJumpPower = 5f;
+    public float holdJumpPower = 8f;
+    public float holdThreshold = 0.13f;
+
+    public GameObject attackHitbox;
+
+    private Rigidbody2D rigid;
+    private SpriteRenderer spriteRenderer;
+    private Animator anim;
+
+    private bool isGrounded = false;
+    private bool isJumping = false;
+
+    private bool jumpPressed = false;
+    private float jumpPressTime = 0f;
+
+    private bool isAttacking = false;
+    private bool canAttack = true;
+
+    private PhysicsMaterial2D groundMat;
+    private PhysicsMaterial2D airMat;
+
+    private float jumpElapsedTime = 0f;
+
+    void Awake()
+    {
+        rigid = GetComponent<Rigidbody2D>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        anim = GetComponent<Animator>();
+
+        rigid.freezeRotation = true;
+
+        if (attackHitbox != null)
+            attackHitbox.SetActive(false);
+
+        groundMat = new PhysicsMaterial2D { friction = 1f, bounciness = 0f };
+        airMat = new PhysicsMaterial2D { friction = 0f, bounciness = 0f };
+
+        GetComponent<Collider2D>().sharedMaterial = groundMat;
+    }
+
+    void Update()  //������ġ! ������ġ����//������ġ! ������ġ����//������ġ! ������ġ����//������ġ! ������ġ����//������ġ! ������ġ����//������ġ! ������ġ����
+    {
+        float h = Input.GetAxisRaw("Horizontal");
+
+        if (!isAttacking && h != 0)
+            spriteRenderer.flipX = h == -1;
+
+        if (Input.GetButtonDown("Jump") && isGrounded && !isAttacking)
+        {
+            jumpPressed = true;
+            jumpPressTime = Time.time;
+
+            rigid.velocity = new Vector2(rigid.velocity.x, tapJumpPower);
+            isJumping = true;
+            jumpElapsedTime = 0f;
+        }
+
+        if (jumpPressed && Input.GetButton("Jump") && isJumping)
+        {
+            float heldTime = Time.time - jumpPressTime;
+            if (heldTime >= holdThreshold)
+            {
+                if (rigid.velocity.y < holdJumpPower)
+                    rigid.velocity = new Vector2(rigid.velocity.x, holdJumpPower);
+                jumpPressed = false;
+            }
+        }
+
+        if (Input.GetButtonUp("Jump"))
+            jumpPressed = false;
+
+        if (Input.GetKeyDown(KeyCode.Z) && canAttack && !isAttacking && isGrounded)
+            StartCoroutine(DoAttack());
+
+        anim.SetBool("isJumping", isJumping);
+        anim.SetBool("isWalking", isGrounded && Mathf.Abs(rigid.velocity.x) > 0.1f);
+        anim.SetBool("stand", isGrounded);
+    }
+
+    void FixedUpdate()
+    {
+        float h = Input.GetAxisRaw("Horizontal");
+
+        Vector2 pos = rigid.position;
+        float wallCheckDistance = 0.1f;
+        LayerMask platformMask = LayerMask.GetMask("Platform");
+
+        bool touchingLeftWall = Physics2D.Raycast(pos, Vector2.left, wallCheckDistance, platformMask);
+        bool touchingRightWall = Physics2D.Raycast(pos, Vector2.right, wallCheckDistance, platformMask);
+
+        if ((h < 0 && touchingLeftWall) || (h > 0 && touchingRightWall))
+            h = 0;
+
+        if (!isAttacking)
+            rigid.velocity = new Vector2(h * maxSpeed, rigid.velocity.y);
+        else
+            rigid.velocity = Vector2.zero;
+
+        if (isJumping)
+            jumpElapsedTime += Time.fixedDeltaTime;
+
+        bool wasGrounded = isGrounded;
+        isGrounded = false;
+
+        if (rigid.velocity.y <= 0)
+        {
+            Vector2 leftOrigin = rigid.position + Vector2.left * 0.193f;
+            Vector2 rightOrigin = rigid.position + Vector2.right * 0.174f;
+
+            RaycastHit2D leftHit = Physics2D.Raycast(leftOrigin, Vector2.down, 1f, platformMask);
+            RaycastHit2D rightHit = Physics2D.Raycast(rightOrigin, Vector2.down, 1f, platformMask);
+
+            if ((leftHit.collider != null && leftHit.distance < 1f) || (rightHit.collider != null && rightHit.distance < 1f))
+                isGrounded = true;
+        }
+
+        if (!wasGrounded && isGrounded)
+        {
+            isJumping = false;
+            jumpElapsedTime = 0f;
+        }
+
+        GetComponent<Collider2D>().sharedMaterial = isGrounded ? groundMat : airMat;
+    }
+
+    IEnumerator DoAttack()
+    {
+        float attackMovementLockDuration = 0.68f;
+        isAttacking = true;
+
+        // ���� ������ 
+        float attackCooldown = 0.125f;
+        canAttack = false;
+
+        anim.SetTrigger("Attack");
+
+        float hitboxDelay = 0.04f;
+        yield return new WaitForSeconds(hitboxDelay);
+
+        if (attackHitbox != null)
+            attackHitbox.SetActive(true);
+
+        float hitboxDuration = 0.2f;
+        yield return new WaitForSeconds(hitboxDuration);
+
+        if (attackHitbox != null)
+            attackHitbox.SetActive(false);
+
+        float timeUntilCanAttack = attackCooldown - hitboxDelay - hitboxDuration; // ������ �𸣴µ� �ǵ�� ���� ���� �ǵ�����!!!!!@!#!@#!@#
+        if (timeUntilCanAttack > 0)
+            yield return new WaitForSeconds(timeUntilCanAttack);
+
+        canAttack = true;
+
+        float timeUntilMovementUnlock = attackMovementLockDuration - attackCooldown;
+        if (timeUntilMovementUnlock > 0)
+            yield return new WaitForSeconds(timeUntilMovementUnlock);
+
+        isAttacking = false;
+    }
+
+    void LateUpdate()
+    {
+        if (attackHitbox != null && spriteRenderer != null)  //�̸� ���� ���ϰ� ���� �߸��ǵ�� �� ���ƾ��´�
+        {
+            Vector3 hitboxPos = spriteRenderer.flipX ? new Vector3(-1f, 0f, 0f) : Vector3.zero;
+            attackHitbox.transform.localPosition = hitboxPos;
+        }
+    }
+}
