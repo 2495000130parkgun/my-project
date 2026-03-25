@@ -1,0 +1,24 @@
+using UnityEngine;
+
+public class FogController : MonoBehaviour
+{
+    void Start()
+    {
+        // 안개 활성화
+        RenderSettings.fog = true;
+
+        // 안개 모드 선택 (Linear / Exponential / ExponentialSquared)
+        RenderSettings.fogMode = FogMode.Linear;
+
+        // 안개 색상 설정 (흰 안개)
+        RenderSettings.fogColor = new Color(0.8f, 0.8f, 0.8f);
+
+        // Linear 모드일 경우 시작 거리와 끝 거리 설정
+        RenderSettings.fogStartDistance = 10f;
+        RenderSettings.fogEndDistance = 50f;
+
+        // Exponential일 경우 안개 밀도 설정
+        // RenderSettings.fogDensity = 0.01f;
+    }
+}
+ 
