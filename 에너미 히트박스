@@ -1,0 +1,29 @@
+using UnityEngine;
+
+public class EnemyHitbox : MonoBehaviour
+{
+    private bool hasHit = false;
+    public float damageAmount = 10f;
+
+    private void OnEnable()
+    {
+        hasHit = false; // ����� �Ȱ��ļ� ���� �ڵ�
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision) // �� �̻��� ����
+    {
+        if (hasHit) return;
+
+        if (collision.CompareTag("Player"))
+        {
+            PlayerHealthController playerHealth = collision.GetComponent<PlayerHealthController>();
+            if (playerHealth != null)
+            {
+                playerHealth.TakeDamage(damageAmount);
+                Debug.Log("�÷��̾ �� ���ݿ� ����! ������: " + damageAmount); // �ܼ� �ʿ��ؼ� ���� ���߿� ���ּ�
+            }
+
+            hasHit = true;
+        }
+    }
+}
