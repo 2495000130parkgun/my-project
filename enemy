@@ -1,0 +1,179 @@
+using UnityEngine;
+using System.Collections;
+
+public class Enemy : MonoBehaviour
+{
+    public int hp = 30; // 체력 
+    public float moveSpeed = 2f;
+    public float chaseRange = 5f;
+    public float attackRange = 1f;
+    public float attackCooldown = 1.5f;
+    public GameObject deathParticlePrefab;
+    public Transform hitboxTransform;
+    public GameObject EnemyHitboxObject;  // 히트박스 게임오브젝트 안틀리게 조심해
+
+    private Transform player;
+    private float lastAttackTime;
+    private SpriteRenderer spriteRenderer;
+    private Animator animator;
+    private bool isDying = false;
+    private bool isAttacking = false;
+    private bool canMove = true;
+
+    private void Start()
+    {
+        player = GameObject.FindGameObjectWithTag("Player")?.transform;
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        animator = GetComponent<Animator>();
+
+        if (EnemyHitboxObject != null)
+            EnemyHitboxObject.SetActive(false);
+    }
+
+    private void Update()
+    {
+        if (isDying || player == null) return;
+
+        float distance = Vector2.Distance(transform.position, player.position);
+
+        if (!isAttacking)
+            FlipDirection();
+
+        if (distance <= attackRange)
+        {
+            animator.SetBool("enemy walking", false);
+            TryAttack();
+        }
+        else if (distance <= chaseRange)
+        {
+            if (canMove && !isAttacking)
+            {
+                animator.SetBool("enemy walking", true);
+                ChasePlayer();
+            }
+        }
+        else
+        {
+            animator.SetBool("enemy walking", false);
+        }
+    }
+
+    private void ChasePlayer()
+    {
+        Vector2 direction = (player.position - transform.position).normalized;
+        transform.position += (Vector3)(direction * moveSpeed * Time.deltaTime);
+    }
+
+    private void FlipDirection()
+    {
+        if (player == null) return;
+
+        bool facingLeft = player.position.x < transform.position.x;
+        spriteRenderer.flipX = facingLeft;
+
+        float hitboxOffsetX = facingLeft ? -0.8f : -0.192f;
+        float hitboxOffsetY = 0.2f;
+
+        if (hitboxTransform != null)
+            hitboxTransform.localPosition = new Vector3(hitboxOffsetX, hitboxOffsetY, 0f);
+
+        if (EnemyHitboxObject != null)
+            EnemyHitboxObject.transform.localPosition = new Vector3(hitboxOffsetX, hitboxOffsetY, 0f);
+    }
+
+    private void TryAttack()
+    {
+        if (Time.time - lastAttackTime >= attackCooldown && !isAttacking)
+        {
+            lastAttackTime = Time.time;
+            isAttacking = true;
+            canMove = false;
+
+            if (animator != null)
+                animator.SetTrigger("enemy attack");
+
+            StartCoroutine(AttackRoutine());
+        }
+    }
+
+    private IEnumerator AttackRoutine()
+    {
+        // 아니 왜 아니왜 아니왜 아니왜 아니 왜 아니 왜 아니 왜 아니 왜 히트박스 왜왜오애ㅗ애왜오애ㅗ애왜ㅗ애ㅙㅗ애ㅗ애오 안 없어져ㅕㅕ젼라ㅣ머리ㅏ;머ㅣㅏ저ㅣ;러.ㅈㅁ;ㅈ
+        yield return new WaitForSeconds(attackCooldown);
+
+        isAttacking = false;
+        canMove = true;
+
+        if (player != null)
+        {
+            float distance = Vector2.Distance(transform.position, player.position);
+            if (distance > attackRange)
+            {
+                animator.SetBool("enemy walking", true);
+            }
+            else
+            {
+                animator.SetBool("enemy walking", false);
+            }
+        }
+        else
+        {
+            animator.SetBool("enemy walking", false);
+        }
+    }
+
+    // 애니메이션 이벤트에서 호출할 함수
+    public void EnableHitbox()
+    {
+        if (EnemyHitboxObject != null)
+        {
+            EnemyHitboxObject.SetActive(true);
+            StartCoroutine(DisableHitboxAfterDelay(0.1f));
+        }
+    }
+
+    private IEnumerator DisableHitboxAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        if (EnemyHitboxObject != null)
+            EnemyHitboxObject.SetActive(false);
+    }
+
+    public void TakeDamage(int damage)
+    {
+        if (isDying) return;
+
+        hp -= damage;
+
+        if (hp <= 0)
+        {
+            StartCoroutine(DieEffect());
+        }
+    }
+
+    private IEnumerator DieEffect()
+    {
+        isDying = true;
+
+        if (deathParticlePrefab != null)
+            Instantiate(deathParticlePrefab, transform.position, Quaternion.identity);
+
+        for (float alpha = 1f; alpha >= 0f; alpha -= Time.deltaTime * 2)
+        {
+            Color c = spriteRenderer.color;
+            c.a = alpha;
+            spriteRenderer.color = c;
+            yield return null;
+        }
+
+        Destroy(gameObject);
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if (collision.CompareTag("AttackHitbox") && !isDying) //attack히트박스 닿으면 데미지 10입는 로직
+        {
+            TakeDamage(10);
+        }
+    }
+}
